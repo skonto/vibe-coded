@@ -1,0 +1,30 @@
+2025-07-28 16:30:13,493 - MCP_SERVER - INFO - 🚀 Initializing SimpleMCPServer...
+2025-07-28 16:30:13,493 - MCP_SERVER - INFO - ✅ MCP Server initialized with 4 tools: ['calculator', 'text_processor', 'data_analyzer', 'string_generator']
+2025-07-28 16:30:25,810 - MCP_SERVER - INFO - 🚀 Initializing SimpleMCPServer...
+2025-07-28 16:30:25,810 - MCP_SERVER - INFO - ✅ MCP Server initialized with 4 tools: ['calculator', 'text_processor', 'data_analyzer', 'string_generator']
+2025-07-28 16:30:47,068 - MCP_SERVER - INFO - 📋 Tool list requested
+2025-07-28 16:31:33,273 - MCP_SERVER - INFO - 🚀 Initializing SimpleMCPServer...
+2025-07-28 16:31:33,273 - MCP_SERVER - INFO - ✅ MCP Server initialized with 4 tools: ['calculator', 'text_processor', 'data_analyzer', 'string_generator']
+2025-07-28 16:31:37,352 - MCP_SERVER - INFO - 📋 Tool list requested
+2025-07-28 16:31:42,327 - MCP_SERVER - INFO - 🛠️ Tool call requested: calculator with arguments: {'operation': 'add', 'a': 15, 'b': 27}
+2025-07-28 16:31:42,327 - MCP_SERVER - INFO - 🧮 Calculator tool called with args: {'operation': 'add', 'a': 15, 'b': 27}
+2025-07-28 16:31:42,327 - MCP_SERVER - INFO - 🧮 Addition: 15 + 27 = 42
+2025-07-28 16:31:42,327 - MCP_SERVER - INFO - ✅ Tool calculator completed: {'content': [{'type': 'text', 'text': 'Result: 42'}], 'isError': False}
+2025-07-28 16:31:44,025 - MCP_SERVER - INFO - 🚀 Initializing SimpleMCPServer...
+2025-07-28 16:31:44,025 - MCP_SERVER - INFO - ✅ MCP Server initialized with 4 tools: ['calculator', 'text_processor', 'data_analyzer', 'string_generator']
+2025-07-28 16:32:00,547 - MCP_SERVER - INFO - 📋 Tool list requested
+2025-07-28 16:32:04,300 - MCP_SERVER - INFO - 🛠️ Tool call requested: text_processor with arguments: {'operation': 'uppercase', 'text': 'hello world'}
+2025-07-28 16:32:04,301 - MCP_SERVER - INFO - 📝 Text processor tool called with args: {'operation': 'uppercase', 'text': 'hello world'}
+2025-07-28 16:32:04,301 - MCP_SERVER - INFO - 📝 Uppercase: 'hello world' -> 'HELLO WORLD'
+2025-07-28 16:32:04,301 - MCP_SERVER - INFO - ✅ Tool text_processor completed: {'content': [{'type': 'text', 'text': 'Result: HELLO WORLD'}], 'isError': False}
+2025-07-28 16:32:11,413 - MCP_SERVER - INFO - 📋 Tool list requested
+2025-07-28 16:32:15,182 - MCP_SERVER - INFO - 🛠️ Tool call requested: calculator with arguments: {'operation': 'multiply', 'a': 25, 'b': 13}
+2025-07-28 16:32:15,182 - MCP_SERVER - INFO - 🧮 Calculator tool called with args: {'operation': 'multiply', 'a': 25, 'b': 13}
+2025-07-28 16:32:15,182 - MCP_SERVER - INFO - 🧮 Multiplication: 25 * 13 = 325
+2025-07-28 16:32:15,182 - MCP_SERVER - INFO - ✅ Tool calculator completed: {'content': [{'type': 'text', 'text': 'Result: 325'}], 'isError': False}
+2025-07-28 16:35:48,868 - MCP_SERVER - INFO - 📋 Tool list requested
+2025-07-28 16:36:07,119 - MCP_SERVER - INFO - 📋 Tool list requested
+2025-07-28 16:36:09,824 - MCP_SERVER - INFO - 🛠️ Tool call requested: calculator with arguments: {'operation': 'add', 'a': 2, 'b': 2000}
+2025-07-28 16:36:09,824 - MCP_SERVER - INFO - 🧮 Calculator tool called with args: {'operation': 'add', 'a': 2, 'b': 2000}
+2025-07-28 16:36:09,824 - MCP_SERVER - INFO - 🧮 Addition: 2 + 2000 = 2002
+2025-07-28 16:36:09,824 - MCP_SERVER - INFO - ✅ Tool calculator completed: {'content': [{'type': 'text', 'text': 'Result: 2002'}], 'isError': False}
