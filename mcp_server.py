@@ -1,319 +1,311 @@
+#!/usr/bin/env python3
+"""
+Weather and Web Search MCP Server
+
+This server provides weather information and web search capabilities
+using the official Anthropic MCP Python SDK.
+"""
+
 import asyncio
 import json
-import random
-import string
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Dict, Any, List, Optional
+import httpx
+from datetime import datetime
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin, urlparse
+
+from mcp.server.fastmcp import FastMCP
+from pydantic import BaseModel, Field
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - MCP_SERVER - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler('mcp_server.log')
-    ]
-)
-logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("weather-mcp-server")
 
-# Simple MCP server implementation without stdio
-class SimpleMCPServer:
-    def __init__(self):
-        logger.info("🚀 Initializing SimpleMCPServer...")
-        self.tools = [
-            {
-                "name": "calculator",
-                "description": "Perform basic arithmetic operations (add, subtract, multiply, divide)",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "operation": {
-                            "type": "string",
-                            "enum": ["add", "subtract", "multiply", "divide"],
-                            "description": "The arithmetic operation to perform"
-                        },
-                        "a": {
-                            "type": "number",
-                            "description": "First number"
-                        },
-                        "b": {
-                            "type": "number",
-                            "description": "Second number"
-                        }
-                    },
-                    "required": ["operation", "a", "b"]
+# Create the MCP server
+mcp = FastMCP("Weather & Web Search Server")
+
+class WeatherData(BaseModel):
+    """Weather data structure."""
+    temperature: float = Field(description="Temperature in Celsius")
+    humidity: float = Field(description="Humidity percentage") 
+    pressure: float = Field(description="Atmospheric pressure in hPa")
+    wind_speed: float = Field(description="Wind speed in km/h")
+    description: str = Field(description="Weather description")
+    city: str = Field(description="City name")
+    country: str = Field(description="Country name")
+
+class WeatherForecast(BaseModel):
+    """Weather forecast structure."""
+    date: str = Field(description="Date in YYYY-MM-DD format")
+    max_temp: float = Field(description="Maximum temperature in Celsius")
+    min_temp: float = Field(description="Minimum temperature in Celsius") 
+    description: str = Field(description="Weather description")
+
+class ForecastData(BaseModel):
+    """Weather forecast data structure."""
+    city: str = Field(description="City name")
+    country: str = Field(description="Country name")
+    forecasts: List[WeatherForecast] = Field(description="List of daily forecasts")
+
+class SearchResult(BaseModel):
+    """Web search result structure."""
+    title: str = Field(description="Page title")
+    url: str = Field(description="Page URL")
+    snippet: str = Field(description="Page snippet/description")
+
+async def geocode_city(city: str) -> Optional[Dict[str, Any]]:
+    """Get coordinates for a city using Open-Meteo geocoding API."""
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                "https://geocoding-api.open-meteo.com/v1/search",
+                params={"name": city, "count": 1, "language": "en", "format": "json"}
+            )
+            response.raise_for_status()
+            data = response.json()
+            
+            if data.get("results"):
+                result = data["results"][0]
+                return {
+                    "latitude": result["latitude"],
+                    "longitude": result["longitude"],
+                    "name": result["name"],
+                    "country": result.get("country", ""),
+                    "admin1": result.get("admin1", "")
                 }
-            },
-            {
-                "name": "text_processor",
-                "description": "Process text with various operations (uppercase, lowercase, reverse, count_words)",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "operation": {
-                            "type": "string",
-                            "enum": ["uppercase", "lowercase", "reverse", "count_words"],
-                            "description": "The text processing operation"
-                        },
-                        "text": {
-                            "type": "string",
-                            "description": "The text to process"
-                        }
-                    },
-                    "required": ["operation", "text"]
+    except Exception as e:
+        logger.error(f"Error geocoding city {city}: {e}")
+    return None
+
+def get_weather_description(weather_code: int) -> str:
+    """Convert weather code to description."""
+    weather_codes = {
+        0: "Clear sky",
+        1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",
+        45: "Fog", 48: "Depositing rime fog",
+        51: "Light drizzle", 53: "Moderate drizzle", 55: "Dense drizzle",
+        56: "Light freezing drizzle", 57: "Dense freezing drizzle",
+        61: "Slight rain", 63: "Moderate rain", 65: "Heavy rain",
+        66: "Light freezing rain", 67: "Heavy freezing rain",
+        71: "Slight snow fall", 73: "Moderate snow fall", 75: "Heavy snow fall",
+        77: "Snow grains",
+        80: "Slight rain showers", 81: "Moderate rain showers", 82: "Violent rain showers",
+        85: "Slight snow showers", 86: "Heavy snow showers",
+        95: "Thunderstorm", 96: "Thunderstorm with slight hail", 99: "Thunderstorm with heavy hail"
+    }
+    return weather_codes.get(weather_code, "Unknown")
+
+@mcp.tool()
+async def get_weather(city: str) -> WeatherData:
+    """Get current weather information for a city using Open-Meteo API."""
+    logger.info(f"Getting weather for city: {city}")
+    
+    # Get coordinates for the city
+    location = await geocode_city(city)
+    if not location:
+        raise ValueError(f"Could not find coordinates for city: {city}")
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                "https://api.open-meteo.com/v1/forecast",
+                params={
+                    "latitude": location["latitude"],
+                    "longitude": location["longitude"],
+                    "current": ["temperature_2m", "relative_humidity_2m", "pressure_msl", 
+                               "wind_speed_10m", "weather_code"],
+                    "timezone": "auto"
                 }
-            },
-            {
-                "name": "data_analyzer",
-                "description": "Analyze a list of numbers (sum, average, min, max)",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "operation": {
-                            "type": "string",
-                            "enum": ["sum", "average", "min", "max"],
-                            "description": "The analysis operation"
-                        },
-                        "numbers": {
-                            "type": "array",
-                            "items": {"type": "number"},
-                            "description": "List of numbers to analyze"
-                        }
-                    },
-                    "required": ["operation", "numbers"]
+            )
+            response.raise_for_status()
+            data = response.json()
+            
+            current = data["current"]
+            weather_code = current.get("weather_code", 0)
+            
+            return WeatherData(
+                temperature=current["temperature_2m"],
+                humidity=current["relative_humidity_2m"],
+                pressure=current["pressure_msl"],
+                wind_speed=current["wind_speed_10m"],
+                description=get_weather_description(weather_code),
+                city=location["name"],
+                country=location["country"]
+            )
+            
+    except Exception as e:
+        logger.error(f"Error fetching weather data: {e}")
+        raise ValueError(f"Failed to fetch weather data: {str(e)}")
+
+@mcp.tool()
+async def get_weather_forecast(city: str, days: int = 5) -> ForecastData:
+    """Get weather forecast for a city using Open-Meteo API."""
+    if days < 1 or days > 16:
+        raise ValueError("Days must be between 1 and 16")
+        
+    logger.info(f"Getting {days}-day forecast for city: {city}")
+    
+    # Get coordinates for the city
+    location = await geocode_city(city)
+    if not location:
+        raise ValueError(f"Could not find coordinates for city: {city}")
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                "https://api.open-meteo.com/v1/forecast",
+                params={
+                    "latitude": location["latitude"],
+                    "longitude": location["longitude"],
+                    "daily": ["temperature_2m_max", "temperature_2m_min", "weather_code"],
+                    "timezone": "auto",
+                    "forecast_days": days
                 }
-            },
-            {
-                "name": "string_generator",
-                "description": "Generate various types of strings (random, pattern, repeat)",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "operation": {
-                            "type": "string",
-                            "enum": ["random", "pattern", "repeat"],
-                            "description": "The string generation operation"
-                        },
-                        "length": {
-                            "type": "integer",
-                            "description": "Length of the string to generate"
-                        },
-                        "pattern": {
-                            "type": "string",
-                            "description": "Pattern for string generation (for pattern operation)"
-                        },
-                        "text": {
-                            "type": "string",
-                            "description": "Text to repeat (for repeat operation)"
-                        }
-                    },
-                    "required": ["operation", "length"]
-                }
-            }
+            )
+            response.raise_for_status()
+            data = response.json()
+            
+            daily = data["daily"]
+            forecasts = []
+            
+            for i in range(len(daily["time"])):
+                weather_code = daily["weather_code"][i]
+                forecasts.append(WeatherForecast(
+                    date=daily["time"][i],
+                    max_temp=daily["temperature_2m_max"][i],
+                    min_temp=daily["temperature_2m_min"][i],
+                    description=get_weather_description(weather_code)
+                ))
+            
+            return ForecastData(
+                city=location["name"],
+                country=location["country"],
+                forecasts=forecasts
+            )
+            
+    except Exception as e:
+        logger.error(f"Error fetching weather forecast: {e}")
+        raise ValueError(f"Failed to fetch weather forecast: {str(e)}")
+
+@mcp.tool()
+async def web_search(query: str, max_results: int = 5) -> List[SearchResult]:
+    """Search the web using DuckDuckGo."""
+    if max_results < 1 or max_results > 10:
+        raise ValueError("max_results must be between 1 and 10")
+        
+    logger.info(f"Searching web for: {query}")
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                "https://html.duckduckgo.com/html/",
+                params={"q": query},
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                },
+                timeout=10.0
+            )
+            response.raise_for_status()
+            
+            soup = BeautifulSoup(response.text, 'html.parser')
+            results = []
+            
+            # Parse DuckDuckGo results
+            for result_div in soup.find_all('div', class_='result__body')[:max_results]:
+                title_link = result_div.find('a', class_='result__a')
+                snippet_div = result_div.find('a', class_='result__snippet')
+                
+                if title_link and snippet_div:
+                    title = title_link.get_text(strip=True)
+                    url = title_link.get('href', '')
+                    snippet = snippet_div.get_text(strip=True)
+                    
+                    if title and url:
+                        results.append(SearchResult(
+                            title=title,
+                            url=url,
+                            snippet=snippet
+                        ))
+            
+            return results
+            
+    except Exception as e:
+        logger.error(f"Error performing web search: {e}")
+        raise ValueError(f"Failed to perform web search: {str(e)}")
+
+@mcp.tool()
+async def get_web_content(url: str, max_length: int = 2000) -> str:
+    """Fetch and extract text content from a web page."""
+    logger.info(f"Fetching content from: {url}")
+    
+    try:
+        # Validate URL
+        parsed = urlparse(url)
+        if not parsed.scheme or not parsed.netloc:
+            raise ValueError("Invalid URL provided")
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                url,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                },
+                timeout=10.0,
+                follow_redirects=True
+            )
+            response.raise_for_status()
+            
+            # Parse HTML content
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # Remove script and style elements
+            for script in soup(["script", "style", "nav", "footer", "header"]):
+                script.decompose()
+            
+            # Get text content
+            text = soup.get_text()
+            
+            # Clean up text
+            lines = (line.strip() for line in text.splitlines())
+            chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+            text = ' '.join(chunk for chunk in chunks if chunk)
+            
+            # Truncate if needed
+            if len(text) > max_length:
+                text = text[:max_length] + "..."
+            
+            return text
+            
+    except Exception as e:
+        logger.error(f"Error fetching web content: {e}")
+        raise ValueError(f"Failed to fetch web content: {str(e)}")
+
+# Add a resource for server information
+@mcp.resource("server://info")
+def get_server_info() -> str:
+    """Get information about this MCP server."""
+    return json.dumps({
+        "name": "Weather & Web Search MCP Server",
+        "version": "1.0.0",
+        "description": "Provides weather information and web search capabilities",
+        "tools": [
+            "get_weather - Get current weather for a city",
+            "get_weather_forecast - Get weather forecast for a city", 
+            "web_search - Search the web using DuckDuckGo",
+            "get_web_content - Extract text content from web pages"
+        ],
+        "data_sources": [
+            "Open-Meteo API (weather data)",
+            "DuckDuckGo (web search)",
+            "Web scraping (content extraction)"
         ]
-        logger.info(f"✅ MCP Server initialized with {len(self.tools)} tools: {[tool['name'] for tool in self.tools]}")
-    
-    def list_tools(self) -> List[Dict[str, Any]]:
-        """List all available tools."""
-        logger.info("📋 Tool list requested")
-        return self.tools
-    
-    async def call_tool(self, name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
-        """Call a tool and return the result."""
-        logger.info(f"🛠️ Tool call requested: {name} with arguments: {arguments}")
-        
-        if name == "calculator":
-            result = await self.calculator_tool(arguments)
-        elif name == "text_processor":
-            result = await self.text_processor_tool(arguments)
-        elif name == "data_analyzer":
-            result = await self.data_analyzer_tool(arguments)
-        elif name == "string_generator":
-            result = await self.string_generator_tool(arguments)
-        else:
-            logger.error(f"❌ Unknown tool requested: {name}")
-            result = {
-                "content": [{"type": "text", "text": f"Unknown tool: {name}"}],
-                "isError": True
-            }
-        
-        logger.info(f"✅ Tool {name} completed: {result}")
-        return result
-    
-    async def calculator_tool(self, args: Dict[str, Any]) -> Dict[str, Any]:
-        """Perform basic arithmetic operations."""
-        logger.info(f"🧮 Calculator tool called with args: {args}")
-        operation = args.get("operation")
-        a = args.get("a")
-        b = args.get("b")
-        
-        try:
-            if operation == "add":
-                result = a + b
-                logger.info(f"🧮 Addition: {a} + {b} = {result}")
-            elif operation == "subtract":
-                result = a - b
-                logger.info(f"🧮 Subtraction: {a} - {b} = {result}")
-            elif operation == "multiply":
-                result = a * b
-                logger.info(f"🧮 Multiplication: {a} * {b} = {result}")
-            elif operation == "divide":
-                if b == 0:
-                    logger.error("❌ Division by zero attempted")
-                    return {
-                        "content": [{"type": "text", "text": "Error: Division by zero"}],
-                        "isError": True
-                    }
-                result = a / b
-                logger.info(f"🧮 Division: {a} / {b} = {result}")
-            else:
-                logger.error(f"❌ Unknown calculator operation: {operation}")
-                return {
-                    "content": [{"type": "text", "text": f"Unknown operation: {operation}"}],
-                    "isError": True
-                }
-            
-            return {
-                "content": [{"type": "text", "text": f"Result: {result}"}],
-                "isError": False
-            }
-        except Exception as e:
-            logger.error(f"❌ Calculator error: {e}")
-            return {
-                "content": [{"type": "text", "text": f"Error: {str(e)}"}],
-                "isError": True
-            }
-    
-    async def text_processor_tool(self, args: Dict[str, Any]) -> Dict[str, Any]:
-        """Process text with various operations."""
-        logger.info(f"📝 Text processor tool called with args: {args}")
-        operation = args.get("operation")
-        text = args.get("text", "")
-        
-        try:
-            if operation == "uppercase":
-                result = text.upper()
-                logger.info(f"📝 Uppercase: '{text}' -> '{result}'")
-            elif operation == "lowercase":
-                result = text.lower()
-                logger.info(f"📝 Lowercase: '{text}' -> '{result}'")
-            elif operation == "reverse":
-                result = text[::-1]
-                logger.info(f"📝 Reverse: '{text}' -> '{result}'")
-            elif operation == "count_words":
-                result = len(text.split())
-                logger.info(f"📝 Word count: '{text}' -> {result} words")
-            else:
-                logger.error(f"❌ Unknown text operation: {operation}")
-                return {
-                    "content": [{"type": "text", "text": f"Unknown operation: {operation}"}],
-                    "isError": True
-                }
-            
-            return {
-                "content": [{"type": "text", "text": f"Result: {result}"}],
-                "isError": False
-            }
-        except Exception as e:
-            logger.error(f"❌ Text processor error: {e}")
-            return {
-                "content": [{"type": "text", "text": f"Error: {str(e)}"}],
-                "isError": True
-            }
-    
-    async def data_analyzer_tool(self, args: Dict[str, Any]) -> Dict[str, Any]:
-        """Analyze a list of numbers."""
-        logger.info(f"📊 Data analyzer tool called with args: {args}")
-        operation = args.get("operation")
-        numbers = args.get("numbers", [])
-        
-        try:
-            if not numbers:
-                logger.error("❌ No numbers provided for analysis")
-                return {
-                    "content": [{"type": "text", "text": "Error: No numbers provided"}],
-                    "isError": True
-                }
-            
-            if operation == "sum":
-                result = sum(numbers)
-                logger.info(f"📊 Sum: {numbers} -> {result}")
-            elif operation == "average":
-                result = sum(numbers) / len(numbers)
-                logger.info(f"📊 Average: {numbers} -> {result}")
-            elif operation == "min":
-                result = min(numbers)
-                logger.info(f"📊 Min: {numbers} -> {result}")
-            elif operation == "max":
-                result = max(numbers)
-                logger.info(f"📊 Max: {numbers} -> {result}")
-            else:
-                logger.error(f"❌ Unknown data analysis operation: {operation}")
-                return {
-                    "content": [{"type": "text", "text": f"Unknown operation: {operation}"}],
-                    "isError": True
-                }
-            
-            return {
-                "content": [{"type": "text", "text": f"Result: {result}"}],
-                "isError": False
-            }
-        except Exception as e:
-            logger.error(f"❌ Data analyzer error: {e}")
-            return {
-                "content": [{"type": "text", "text": f"Error: {str(e)}"}],
-                "isError": True
-            }
-    
-    async def string_generator_tool(self, args: Dict[str, Any]) -> Dict[str, Any]:
-        """Generate various types of strings."""
-        logger.info(f"🔤 String generator tool called with args: {args}")
-        operation = args.get("operation")
-        length = args.get("length", 10)
-        
-        try:
-            if operation == "random":
-                result = ''.join(random.choices(string.ascii_letters + string.digits, k=length))
-                logger.info(f"🔤 Random string (length {length}): '{result}'")
-            elif operation == "pattern":
-                pattern = args.get("pattern", "abc")
-                result = (pattern * (length // len(pattern) + 1))[:length]
-                logger.info(f"🔤 Pattern string (length {length}, pattern '{pattern}'): '{result}'")
-            elif operation == "repeat":
-                text = args.get("text", "x")
-                result = (text * (length // len(text) + 1))[:length]
-                logger.info(f"🔤 Repeat string (length {length}, text '{text}'): '{result}'")
-            else:
-                logger.error(f"❌ Unknown string generation operation: {operation}")
-                return {
-                    "content": [{"type": "text", "text": f"Unknown operation: {operation}"}],
-                    "isError": True
-                }
-            
-            return {
-                "content": [{"type": "text", "text": f"Generated string: {result}"}],
-                "isError": False
-            }
-        except Exception as e:
-            logger.error(f"❌ String generator error: {e}")
-            return {
-                "content": [{"type": "text", "text": f"Error: {str(e)}"}],
-                "isError": True
-            }
+    }, indent=2)
 
-# Global server instance
-mcp_server = SimpleMCPServer()
-
-# For backward compatibility with the original MCP interface
-async def main():
-    """Main function for standalone MCP server."""
-    print("MCP Server initialized with tools:")
-    for tool in mcp_server.tools:
-        print(f"  - {tool['name']}: {tool['description']}")
-    
-    # Keep the server running
-    while True:
-        await asyncio.sleep(1)
+def main():
+    """Run the MCP server."""
+    logger.info("Starting Weather & Web Search MCP Server...")
+    mcp.run()
 
 if __name__ == "__main__":
-    asyncio.run(main()) 
+    main() 

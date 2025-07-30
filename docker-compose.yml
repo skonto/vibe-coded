@@ -1,0 +1,59 @@
+# Docker Compose file for Weather Chat API
+# Uses Open-Meteo for weather data (free, no API key required)
+# Only requires OpenAI API key at runtime
+
+services:
+  # Official Redis Docker image
+  redis:
+    image: redis:7.4-alpine
+    container_name: weather_chat_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - weather_chat
+
+  # Weather Chat API
+  weather_chat_api:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: weather_chat_api
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - OPENAI_API_KEY=${OPENAI_API_KEY:?Please set OPENAI_API_KEY environment variable}
+      - SECRET_KEY=weather_chat_secret_key_change_in_production
+      - DEBUG=True
+      - PYTHONPATH=/app
+    volumes:
+      - ./:/app
+      - ./weather_chat.db:/app/weather_chat.db
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - weather_chat
+
+networks:
+  weather_chat:
+    driver: bridge
+
+volumes:
+  redis_data: 

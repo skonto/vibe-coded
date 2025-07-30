@@ -1,275 +1,293 @@
-# ChatGPT with MCP Tools
+# Weather Chat API
 
-A FastAPI application that integrates ChatGPT with Model Context Protocol (MCP) tools for enhanced AI capabilities. This project demonstrates how to create an MCP server with trivial methods and expose them through a FastAPI wrapper, then use them with ChatGPT's tool calling feature.
+A FastAPI-based weather chat application that uses OpenAI's GPT models to provide conversational weather information. The app integrates with **Open-Meteo** (completely free, no API key required) for weather data and includes web search capabilities through an MCP (Message Control Protocol) server.
 
-## 🖼️ Web Interface Example
+## 🚀 Quick Start (Docker - Recommended)
 
-![API Web Interface](static/api.png)
+The easiest way to get started is with Docker:
 
-*Above: The included `index.html` web interface in action (see `static/index.html`).*
-
-## 🚀 Features
-
-- **MCP Server**: Custom server with trivial tools for calculations, text processing, data analysis, and string generation
-- **FastAPI Wrapper**: HTTP API wrapper around the MCP server
-- **ChatGPT Integration**: Full integration with OpenAI's GPT-4 model and tool calling
-- **Web Interface**: Beautiful, responsive web UI for testing the application
-- **Real-time Status**: Health monitoring for all services
-
-## 🛠️ Available Tools
-
-### Calculator
-- **Operations**: add, subtract, multiply, divide
-- **Example**: "Calculate 15 + 27"
-
-### Text Processor
-- **Operations**: uppercase, lowercase, reverse, count_words
-- **Example**: "Convert 'hello world' to uppercase"
-
-### Data Analyzer
-- **Operations**: sum, average, min, max
-- **Example**: "Find the average of [10, 20, 30, 40, 50]"
-
-### String Generator
-- **Operations**: random, pattern, repeat
-- **Example**: "Generate a random string of length 10"
-
-## 📋 Prerequisites
-
-- Python 3.8+
-- OpenAI API key
-- Internet connection
-
-## 🛠️ Installation
-
-1. **Clone or download the project files**
-
-2. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Set up your OpenAI API key**:
-   ```bash
-   export OPENAI_API_KEY="your-api-key-here"
-   ```
-   
-   Or create a `.env` file:
-   ```
-   OPENAI_API_KEY=your-api-key-here
-   ```
-
-## 🚀 Running the Application
-
-### Option 1: Use the startup script (Recommended)
 ```bash
-python start.py
+# Clone and enter the project
+git clone <your-repo-url>
+cd weather-chat-api
+
+# Start everything (you'll be prompted only for OpenAI API key)
+make docker-start
 ```
 
-This will start both the MCP wrapper (port 8000) and the main application (port 8001).
+That's it! The system will:
+- ✅ Prompt for your OpenAI API key (securely, not stored)
+- 🐳 Build and start Redis + API in Docker containers  
+- 🌤️ Use Open-Meteo for weather data (free, no API key needed)
+- 🔍 Enable web search via DuckDuckGo (free, no API key needed)
+- 🧪 Run health checks and test queries
+- 📋 Show you example API calls
 
-### Option 2: Run services individually
+## ✨ Key Features
 
-1. **Start the MCP FastAPI wrapper**:
-   ```bash
-   python mcp_fastapi_wrapper.py
-   ```
+### 🔒 **Secure & Simple**
+- **Only OpenAI API key required** - prompted securely at runtime
+- **No API keys stored** in files or environment variables
+- **Free weather data** from Open-Meteo (no registration needed)
+- **Free web search** via DuckDuckGo (no registration needed)
 
-2. **In another terminal, start the main application**:
-   ```bash
-   python main.py
-   ```
+### 🎯 **Smart Conversations**
+- **Session-based chat history** with Redis storage
+- **Context-aware responses** that remember user preferences
+- **Preferred city detection** from conversation history
+- **Multi-turn conversations** with weather context
 
-## 🌐 Accessing the Application
+### 🌐 **Comprehensive Weather Data**
+- **Current weather** for any city worldwide
+- **Multi-day forecasts** (up to 16 days)
+- **High-accuracy data** from national weather services via Open-Meteo
+- **Global coverage** with geocoding support
 
-Once running, you can access:
+### 🔗 **MCP Integration**
+- **Tool calling** with OpenAI function calling
+- **Web search** for weather-related information
+- **Web content extraction** from URLs
+- **Extensible architecture** for adding new tools
 
-- **Web Interface**: http://localhost:8001
-- **API Documentation**: http://localhost:8001/docs
-- **MCP API**: http://localhost:8000
-- **Health Check**: http://localhost:8001/health
+## 🛠️ Available Setup Methods
 
-## 📚 API Usage
-
-### Chat with Tools
+### 1. Docker (Recommended)
 ```bash
-curl -X POST "http://localhost:8001/chat" \
+make docker-start    # Start with Docker Compose
+make docker-logs     # View container logs
+make docker-down     # Stop containers
+```
+
+### 2. Virtual Environment
+```bash
+make setup-venv      # Create venv and install dependencies
+make start-venv      # Start with virtual environment
+```
+
+### 3. System Installation
+```bash
+make install         # Install system dependencies
+make dev            # Start in development mode
+```
+
+## 📡 API Endpoints
+
+### Chat Endpoints
+- `POST /chat/session` - Create new chat session
+- `POST /chat/message` - Send message to chat
+- `GET /chat/session/{session_id}` - Get session info
+- `GET /chat/session/{session_id}/history` - Get chat history
+
+### Utility Endpoints
+- `GET /chat/tools` - List available MCP tools
+- `GET /health` - Health check
+- `GET /` - API information
+
+## 🔧 MCP Tools Available
+
+The system includes these built-in tools:
+
+1. **get_weather** - Current weather for any city (Open-Meteo)
+2. **get_weather_forecast** - Multi-day weather forecast (Open-Meteo)  
+3. **web_search** - Search the web using DuckDuckGo
+4. **get_web_content** - Extract content from web pages
+
+## 💬 Example Usage
+
+### Start a Chat Session
+```bash
+curl -X POST http://localhost:8000/chat/session
+```
+
+### Send a Weather Query
+```bash
+curl -X POST http://localhost:8000/chat/message \
   -H "Content-Type: application/json" \
   -d '{
-    "message": "Calculate 15 + 27 for me",
-    "conversation_history": []
-  }' | python -m json.tool
-```
-**Expected response:**
-```json
-{
-    "response": "The result is 42.",
-    "tool_calls": [
-        {
-            "name": "calculator",
-            "arguments": {
-                "operation": "add",
-                "a": 15,
-                "b": 27
-            }
-        }
-    ],
-    "tool_results": [
-        "Result: 42"
-    ]
-}
-```
-
-### List Available Tools
-```bash
-curl "http://localhost:8001/tools"
-```
-
-### Simple Chat (without tools)
-```bash
-curl -X POST "http://localhost:8001/chat/simple" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "message": "Hello, how are you?",
-    "conversation_history": []
+    "session_id": "your-session-id",
+    "message": "What is the weather like in Paris?",
+    "city": "Paris"
   }'
 ```
 
-## 🧪 Testing Examples
-
-Try these example conversations in the web interface:
-
-1. **Mathematical calculations**:
-   - "What is 25 * 13?"
-   - "Calculate the sum of 10, 20, 30, 40, and 50"
-
-2. **Text processing**:
-   - "Convert 'Hello World' to uppercase"
-   - "Reverse the text 'OpenAI'"
-   - "Count the words in 'This is a test sentence'"
-
-3. **Data analysis**:
-   - "Find the average of [1, 2, 3, 4, 5]"
-   - "What's the maximum value in [10, 5, 25, 15, 30]?"
-
-4. **String generation**:
-   - "Generate a random string of length 8"
-   - "Create a pattern string of length 12 with pattern 'abc'"
-
-## 🏗️ Architecture
-
-```
-┌────────────────────┐
-│  Web Interface     │
-│  (static HTML/JS)  │
-└─────────┬──────────┘
-          │ HTTP (REST)
-          ▼
-┌────────────────────────────┐
-│   Main FastAPI App (8001)  │
-│  (LLM + Tool Orchestration)│
-└─────────┬──────────┬───────┘
-          │          │
-          │          │
-          ▼          ▼
-   OpenAI API   MCP FastAPI Wrapper (8000)
-    (ChatGPT)   │
-                ▼
-         MCP Server (Python class)
+### Example Response
+```json
+{
+  "response": "The current weather in Paris is partly cloudy with a temperature of 18°C (feels like 17°C). Humidity is at 65% with light winds at 12 km/h. It's a pleasant day - perfect for a walk outside!",
+  "session_id": "your-session-id",
+  "weather_data": {
+    "city": "Paris",
+    "temperature": 18.0,
+    "feels_like": 17.0,
+    "humidity": 65,
+    "description": "partly cloudy",
+    "wind_speed": 12.0
+  },
+  "tools_used": ["get_weather"]
+}
 ```
 
-- The **Web Interface** (browser) communicates only with the **Main FastAPI App** (port 8001).
-- The **Main FastAPI App** orchestrates LLM calls and tool calls.
-- The **MCP FastAPI Wrapper** (port 8000) and **MCP Server** are in the same process/module; the wrapper directly calls the MCP server Python class.
-- The **Main FastAPI App** also communicates with the **OpenAI API** for LLM completions.
+## 🌍 Weather Data Source
 
-## 📁 Project Structure
+This application uses **Open-Meteo**, an open-source weather API that:
+
+- ✅ **Completely free** for non-commercial use
+- ✅ **No API key required** - works immediately  
+- ✅ **High accuracy** - uses data from national weather services
+- ✅ **Global coverage** - weather data for anywhere in the world
+- ✅ **Up to 16-day forecasts** - comprehensive forecast data
+- ✅ **Open source** - transparent and reliable
+
+Learn more at: https://open-meteo.com
+
+## 🔐 Security Features
+
+- **Runtime-only API key storage** - OpenAI key prompted securely, never stored
+- **No sensitive data in Docker images** - `.env` files excluded via `.dockerignore`
+- **Environment variable injection** - API keys passed to containers at runtime
+- **Session isolation** - each user gets isolated chat sessions
+- **Input validation** - Pydantic models for request/response validation
+
+## 📊 Architecture
 
 ```
-.
-├── mcp_server.py              # MCP server with trivial tools
-├── mcp_fastapi_wrapper.py     # FastAPI wrapper for MCP server
-├── main.py                    # Main ChatGPT application
-├── start.py                   # Startup script
-├── requirements.txt           # Python dependencies
-├── static/
-│   └── index.html            # Web interface
-└── README.md                 # This file
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   FastAPI App   │────│   Session Store  │────│      Redis      │
+│                 │    │     (Redis)      │    │                 │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+         │
+         ├─────────────────┐
+         │                 │
+┌─────────────────┐    ┌──────────────────┐
+│   OpenAI API    │    │   MCP Server     │
+│  (Chat/Tools)   │    │  (Tool Calling)  │
+└─────────────────┘    └──────────────────┘
+                              │
+                    ┌─────────┼─────────┐
+                    │         │         │
+            ┌──────────┐ ┌─────────┐ ┌─────────┐
+            │Open-Meteo│ │DuckDuck │ │Web Fetch│
+            │(Weather) │ │Go Search│ │ Tools   │
+            └──────────┘ └─────────┘ └─────────┘
 ```
 
-## 🔧 Customization
+## 🔧 Development
 
-### Adding New Tools
+### Requirements
+- Python 3.11+
+- Docker & Docker Compose (for containerized setup)
+- Redis (for local development)
 
-To add new tools to the MCP server:
+### Environment Variables
+Only one environment variable is required:
+- `OPENAI_API_KEY` - Your OpenAI API key (prompted at runtime)
 
-1. **Add tool definition** in `mcp_server.py`:
-   ```python
-   Tool(
-       name="your_tool_name",
-       description="Description of your tool",
-       inputSchema={
-           "type": "object",
-           "properties": {
-               "param1": {"type": "string"},
-               "param2": {"type": "number"}
-           },
-           "required": ["param1", "param2"]
-       }
-   )
-   ```
+All other settings have sensible defaults:
+- `REDIS_URL` - defaults to `redis://localhost:6379`
+- `SECRET_KEY` - has a default value (change in production)
+- `DEBUG` - defaults to `True`
 
-2. **Add tool handler** in `mcp_server.py`:
-   ```python
-   async def your_tool_handler(args: Dict[str, Any]) -> CallToolResult:
-       # Your tool logic here
-       return CallToolResult(
-           content=[TextContent(type="text", text="Your result")]
-       )
-   ```
+### Development Commands
+```bash
+# Development setup
+make dev-setup       # Setup development environment (uses Docker)
 
-3. **Register the tool** in the `handle_call_tool` function.
+# Docker commands  
+make docker-build    # Build Docker images
+make docker-up       # Start services in background
+make docker-logs     # View logs
+make docker-down     # Stop and remove containers
 
-### Modifying the Web Interface
+# Virtual environment commands
+make setup-venv      # Create virtual environment and install deps
+make run-venv        # Run API in virtual environment
 
-Edit `static/index.html` to customize the web interface appearance and functionality.
+# Testing and utilities
+make test           # Run tests (when implemented)
+make clean          # Clean up temporary files
+```
 
-## 🐛 Troubleshooting
+## 📚 Project Structure
 
-### Common Issues
+```
+weather-chat-api/
+├── app/                    # FastAPI application
+│   ├── core/              # Core configuration and settings
+│   ├── services/          # Business logic services
+│   ├── schemas/           # Pydantic models
+│   ├── routers/           # API route definitions
+│   └── utils/             # Utility functions and error handling
+├── mcp/                   # Message Control Protocol implementation
+│   ├── models.py          # MCP data models
+│   ├── protocol.py        # Protocol parsing and routing
+│   ├── server.py          # MCP server implementation
+│   └── tools/             # MCP tool implementations
+├── main.py                # FastAPI app entry point
+├── docker-compose.yml     # Docker services configuration
+├── Dockerfile             # Docker image definition
+├── requirements.txt       # Python dependencies
+├── Makefile              # Development commands
+└── start_docker.py       # Docker startup script
+```
 
-1. **"MCP Server is not responding"**
-   - Check if the MCP wrapper is running on port 8000
-   - Restart the application using `python start.py`
+## 🆘 Troubleshooting
 
-2. **"OpenAI API not configured"**
-   - Set the `OPENAI_API_KEY` environment variable
-   - Ensure you have a valid OpenAI API key
+### Docker Issues
+```bash
+# Check if containers are running
+docker compose ps
 
-3. **Port already in use**
-   - Kill processes using ports 8000 and 8001
-   - Or modify the port numbers in the respective files
+# View container logs
+docker compose logs weather_chat_api
+docker compose logs redis
 
-4. **Import errors**
-   - Install all dependencies: `pip install -r requirements.txt`
-   - Ensure you're using Python 3.8+
+# Restart services
+docker compose restart
 
-### Debug Mode
+# Complete reset
+docker compose down
+docker system prune -f
+python start_docker.py
+```
 
-To run with debug output, modify the uvicorn calls in the Python files:
+### API Key Issues
+- Make sure your OpenAI API key starts with `sk-`
+- Check your OpenAI account has sufficient credits
+- The key is only prompted once per session - restart if needed
 
-```python
-uvicorn.run(app, host="0.0.0.0", port=8001, log_level="debug")
+### Weather Data Issues
+- Open-Meteo requires no setup and should work immediately
+- Check internet connectivity if weather requests fail
+- Try different city names if geocoding fails
+
+### Redis Connection Issues
+```bash
+# For Docker setup - Redis should start automatically
+docker compose logs redis
+
+# For local setup - ensure Redis is running
+redis-cli ping  # Should return "PONG"
 ```
 
 ## 📄 License
 
-This project is open source and available under the MIT License.
+This project is open source. The weather data from Open-Meteo is provided under CC BY 4.0 license.
 
 ## 🤝 Contributing
 
-Feel free to submit issues, feature requests, or pull requests to improve this project.
+Contributions are welcome! This project demonstrates:
+- FastAPI best practices
+- OpenAI function calling
+- Docker containerization
+- Redis session management
+- MCP protocol implementation
+- Secure API key handling
 
-## 📞 Support
+Feel free to open issues or submit pull requests.
 
-If you encounter any issues or have questions, please check the troubleshooting section above or create an issue in the project repository. 
+## 🙏 Acknowledgments
+
+- **Open-Meteo** for providing free, high-quality weather data
+- **OpenAI** for GPT models and function calling capabilities
+- **FastAPI** for the excellent web framework
+- **Redis** for fast session storage 
